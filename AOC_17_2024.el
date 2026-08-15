@@ -11,7 +11,7 @@
 
 (defvar ulce-memsize 20
   "Default memory size.")
-(setq ulce-memsize 20)
+(setq ulce-memsize 20) ; set here for applying change on re-eval of buffer
 
 (cl-defstruct ulce-registers
   "Register structure."
@@ -19,19 +19,21 @@
   )
 
 (cl-defstruct ulce-machine
-  "CPU structure, r: registers sub-structure, pc: program counter, mem: memory."
+  "CPU structure, r: registers sub-structure, pc: program counter, mem: memory, prog-end."
   (r-abc (make-ulce-registers)) (pc 0) (mem (make-vector ulce-memsize 0)))
 
 (defvar ulce-cpu nil "Default global CPU structure.")
-(setq ulce-cpu (make-ulce-machine))
+(setq ulce-cpu (make-ulce-machine)); set here for applying change on re-eval of buffer
 
-(defun ulce--get-op (cpu pc)
-  "Return current op-code from CPU at current PC."
-  (aref (ulce-machine-mem cpu) pc))
+(defun ulce--mem-read (addr cpu)
+  "Retuns contents of memory address ADDR from CPU."
+  (aref (ulce-machine-mem cpu) addr))
 
-(defun ulce--get-operand (cpu pc)
-  "Return current operand from CPU at current PC."
-  (aref (ulce-machine-mem cpu) (1+ pc)))
+(defun ulce--advance (cpu)
+  "Retuns contents from CPU memory address pc, and advance pc to next byte."
+ (prog1
+  (ulce--mem-read (ulce-machine-pc cpu) cpu)
+  (cl-incf (ulce-machine-pc cpu) 1)))
 
 (defun ulce--decode-combo-operand (operand reg)
   "Return current combo-operand for OPERAND using register data REG."
@@ -48,40 +50,41 @@
      operand)))
 
 ;; Version using bit-vise operations, deduced from the original puzzle.
-(defun ulce--exec-op (op operand cpu reg)
-  "Execute OP with OPERAND on CPU and REG."
-  (pcase op
-    (0
-     (setf (ulce-registers-a reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
-    (1
-     (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  operand)))
-    (2
-     (setf (ulce-registers-b reg)  (logand (ulce--decode-combo-operand operand reg) 7 )))
-    ((and 3 (guard (not (zerop (ulce-registers-a reg)))))
-     (setf (ulce-machine-pc cpu)  operand))
-    (3
-     nil) ; jnz not taken
-    (4
-     (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  (ulce-registers-c reg))))
-    (5
-     (message "%d" (logand (ulce--decode-combo-operand operand reg) 7)))
-    (6
-     (setf (ulce-registers-b reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
-    (7
-     (setf (ulce-registers-c reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
-    (op ; matches all and binds to op
-     (error "Bad opcode: %S" op))))
+(defun ulce--exec-op (op operand cpu)
+  "Execute OP with OPERAND on CPU."
+  (let ((reg (ulce-machine-r-abc cpu)))
+    (pcase op
+      (0
+       (setf (ulce-registers-a reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
+      (1
+       (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  operand)))
+      (2
+       (setf (ulce-registers-b reg)  (logand (ulce--decode-combo-operand operand reg) 7 )))
+      ((and 3 (guard (not (zerop (ulce-registers-a reg)))))
+       (setf (ulce-machine-pc cpu)  operand))
+       (3
+        nil) ; jnz not taken
+       (4
+        (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  (ulce-registers-c reg))))
+       (5
+        (message "%d" (logand (ulce--decode-combo-operand operand reg) 7)))
+       (6
+        (setf (ulce-registers-b reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
+       (7
+        (setf (ulce-registers-c reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
+       (op ; matches all and binds to op
+        (error "Bad opcode: %S" op)))))
 
 (defun ulce-run (cpu)
-  "Run program on machine CPU until end of program."
-  (let ((cpu (or cpu ulce-cpu)))
-    (while  (< (ulce-machine-pc cpu) (length (ulce-machine-mem cpu)))
-      (let* ((pc (ulce-machine-pc cpu))
-             (op (ulce--get-op cpu pc))
-             (operand (ulce--get-operand cpu pc))
-             (reg (ulce-machine-r-abc cpu)))
-        (cl-incf (ulce-machine-pc cpu) 2) ; advance pc always to for this cpu
-        (ulce--exec-op op operand cpu reg)))))
+  "Run program on machine CPU until end of program (op 99)."
+  (let ((cpu (or cpu ulce-cpu))
+        (running t))
+    (while  running
+      (let*  ((op (ulce--advance cpu))
+              (operand (ulce--advance cpu))) ; operand is always second byte
+        (if (eq op 99)
+            (setq running nil)
+          (ulce--exec-op op operand cpu))))))
 
 (defun ulce-load-program  (prog &optional a b c cpu)
   "Load PROG vector into mem of CPU (defaults `ulce-cpu'), set A B C registers."
@@ -102,7 +105,7 @@
     (ulce-run cpu)))
 
 ;; run test on the global default ulce-cpu
-(ulce-load-program (vconcat [2 4 1 3 7 5 4 1 1 3 0 3 5 5 3 0]) 37283687 0 0)
+(ulce-load-program (vconcat [2 4 1 3 7 5 4 1 1 3 0 3 5 5 3 0 99]) 37283687 0 0)
 (testit)
 ;(pp ulce-cpu)
 
