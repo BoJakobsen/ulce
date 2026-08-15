@@ -25,14 +25,14 @@
 (defvar ulce-cpu nil "Default global CPU structure.")
 (setq ulce-cpu (make-ulce-machine)); set here for applying change on re-eval of buffer
 
-(defun ulce--mem-read (addr cpu)
+(defun ulce--mem-read (cpu addr)
   "Retuns contents of memory address ADDR from CPU."
   (aref (ulce-machine-mem cpu) addr))
 
 (defun ulce--advance (cpu)
   "Retuns contents from CPU memory address pc, and advance pc to next byte."
  (prog1
-  (ulce--mem-read (ulce-machine-pc cpu) cpu)
+  (ulce--mem-read cpu (ulce-machine-pc cpu))
   (cl-incf (ulce-machine-pc cpu) 1)))
 
 (defun ulce--decode-combo-operand (operand reg)
@@ -50,7 +50,7 @@
      operand)))
 
 ;; Version using bit-vise operations, deduced from the original puzzle.
-(defun ulce--exec-op (op operand cpu)
+(defun ulce--exec-op (cpu op operand)
   "Execute OP with OPERAND on CPU."
   (let ((reg (ulce-machine-r-abc cpu)))
     (pcase op
@@ -75,22 +75,23 @@
        (op ; matches all and binds to op
         (error "Bad opcode: %S" op)))))
 
-(defun ulce-step (cpu)
+(defun ulce-step (&optional cpu)
   "Step program on machine CPU. Return nil if program end reached."
   (let ((cpu (or cpu ulce-cpu)))
     (let*  ((op (ulce--advance cpu))
             (operand (ulce--advance cpu))) ; operand is always second byte  
       (unless (= op (ulce-machine-stop-code cpu))    
-        (ulce--exec-op op operand cpu)
+        (ulce--exec-op cpu op operand)
         t))))
 
-(defun ulce-run (cpu)
-  "Run program on machine CPU until end of program."
+(defun ulce-run (&optional cpu pc)
+  "Run program on machine CPU until end of program, optional from PC."
   (let ((cpu (or cpu ulce-cpu)))
+    (if pc (setf (ulce-machine-pc cpu) pc))
     (while (ulce-step cpu))))
 
-(defun ulce-load-program  (prog &optional a b c cpu)
-  "Load PROG vector into mem of CPU (defaults `ulce-cpu'), set A B C registers."
+(defun ulce-load-program  (cpu prog &optional a b c)
+  "Load PROG vector into mem of CPU (defaults `ulce-cpu'), set A B C registers, adds stop code."
   (let ((cpu (or cpu ulce-cpu))
         (a (or a 0))
         (b (or b 0))
@@ -98,18 +99,16 @@
     (setf (ulce-registers-a (ulce-machine-r-abc cpu)) a)
     (setf (ulce-registers-b (ulce-machine-r-abc cpu)) b)
     (setf (ulce-registers-c (ulce-machine-r-abc cpu)) c)
-    (cl-replace (ulce-machine-mem cpu) prog)))
+    (cl-replace (ulce-machine-mem cpu) (vconcat prog (list (ulce-machine-stop-code cpu))))))
 
-(defun testit (&optional pc cpu)
-  "Run current program on CPU (default is the global `ulce-cpu') starting from PC."
-  (let ((cpu (or cpu ulce-cpu))
-        (pc (or pc 0 )))
-    (setf (ulce-machine-pc cpu) pc)
-    (ulce-run cpu)))
+(defun testit-AOC17 (&optional cpu)
+  "Load and run a test program on CPU (default is the global `ulce-cpu')."
+  (let ((cpu (or cpu ulce-cpu)))
+    (ulce-load-program cpu [2 4 1 3 7 5 4 1 1 3 0 3 5 5 3 0] 37283687 0 0)
+    (ulce-run cpu 0)))
 
 ;; run test on the global default ulce-cpu
-(ulce-load-program (vconcat [2 4 1 3 7 5 4 1 1 3 0 3 5 5 3 0 99]) 37283687 0 0)
-(testit)
+(testit-AOC17)
 ;(pp ulce-cpu)
 
 ;;; AOC_17_2024.el ends here
