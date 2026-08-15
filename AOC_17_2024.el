@@ -74,13 +74,14 @@
 
 (defun ulce-run (cpu)
   "Run program on machine CPU until end of program."
-  (while  (< (ulce-machine-pc ulce-cpu) (length (ulce-machine-mem ulce-cpu)))
-    (let* ((pc (ulce-machine-pc ulce-cpu))
-           (op (ulce--get-op cpu pc))
-           (operand (ulce--get-operand cpu pc))
-           (reg (ulce-machine-r-abc ulce-cpu)))
-      (cl-incf (ulce-machine-pc ulce-cpu) 2) ; advance pc always to for this cpu
-      (ulce--exec-op op operand cpu reg))))
+  (let ((cpu (or cpu ulce-cpu)))
+    (while  (< (ulce-machine-pc cpu) (length (ulce-machine-mem cpu)))
+      (let* ((pc (ulce-machine-pc cpu))
+             (op (ulce--get-op cpu pc))
+             (operand (ulce--get-operand cpu pc))
+             (reg (ulce-machine-r-abc cpu)))
+        (cl-incf (ulce-machine-pc cpu) 2) ; advance pc always to for this cpu
+        (ulce--exec-op op operand cpu reg)))))
 
 (defun ulce-load-program  (prog &optional a b c cpu)
   "Load PROG vector into mem of CPU (defaults `ulce-cpu'), set A B C registers."
