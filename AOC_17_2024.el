@@ -19,8 +19,8 @@
   )
 
 (cl-defstruct ulce-machine
-  "CPU structure, r: registers sub-structure, pc: program counter, mem: memory, prog-end."
-  (r-abc (make-ulce-registers)) (pc 0) (mem (make-vector ulce-memsize 0)))
+  "CPU structure, r: registers sub-structure, pc: program counter, mem: memory, stop-code."
+  (r-abc (make-ulce-registers)) (pc 0) (mem (make-vector ulce-memsize 0)) (stop-code 99) )
 
 (defvar ulce-cpu nil "Default global CPU structure.")
 (setq ulce-cpu (make-ulce-machine)); set here for applying change on re-eval of buffer
@@ -75,16 +75,19 @@
        (op ; matches all and binds to op
         (error "Bad opcode: %S" op)))))
 
+(defun ulce-step (cpu)
+  "Step program on machine CPU. Return nil if program end reached."
+  (let ((cpu (or cpu ulce-cpu)))
+    (let*  ((op (ulce--advance cpu))
+            (operand (ulce--advance cpu))) ; operand is always second byte  
+      (unless (= op (ulce-machine-stop-code cpu))    
+        (ulce--exec-op op operand cpu)
+        t))))
+
 (defun ulce-run (cpu)
-  "Run program on machine CPU until end of program (op 99)."
-  (let ((cpu (or cpu ulce-cpu))
-        (running t))
-    (while  running
-      (let*  ((op (ulce--advance cpu))
-              (operand (ulce--advance cpu))) ; operand is always second byte
-        (if (eq op 99)
-            (setq running nil)
-          (ulce--exec-op op operand cpu))))))
+  "Run program on machine CPU until end of program."
+  (let ((cpu (or cpu ulce-cpu)))
+    (while (ulce-step cpu))))
 
 (defun ulce-load-program  (prog &optional a b c cpu)
   "Load PROG vector into mem of CPU (defaults `ulce-cpu'), set A B C registers."
