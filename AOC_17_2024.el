@@ -62,25 +62,25 @@
        (setf (ulce-registers-b reg)  (logand (ulce--decode-combo-operand operand reg) 7 )))
       ((and 3 (guard (not (zerop (ulce-registers-a reg)))))
        (setf (ulce-machine-pc cpu)  operand))
-       (3
-        nil) ; jnz not taken
-       (4
-        (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  (ulce-registers-c reg))))
-       (5
-        (message "%d" (logand (ulce--decode-combo-operand operand reg) 7)))
-       (6
-        (setf (ulce-registers-b reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
-       (7
-        (setf (ulce-registers-c reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
-       (op ; matches all and binds to op
-        (error "Bad opcode: %S" op)))))
+      (3
+       nil) ; jnz not taken
+      (4
+       (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  (ulce-registers-c reg))))
+      (5
+       (message "%d" (logand (ulce--decode-combo-operand operand reg) 7)))
+      (6
+       (setf (ulce-registers-b reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
+      (7
+       (setf (ulce-registers-c reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
+      (op ; matches all and binds to op
+       (error "Bad opcode: %S" op)))))
 
 (defun ulce-step (&optional cpu)
   "Step program on machine CPU. Return nil if program end reached."
   (let ((cpu (or cpu ulce-cpu)))
     (let*  ((op (ulce--advance cpu))
-            (operand (ulce--advance cpu))) ; operand is always second byte  
-      (unless (= op (ulce-machine-stop-code cpu))    
+            (operand (ulce--advance cpu))) ; operand is always second byte
+      (unless (= op (ulce-machine-stop-code cpu))
         (ulce--exec-op cpu op operand)
         t))))
 
@@ -90,8 +90,8 @@
     (if pc (setf (ulce-machine-pc cpu) pc))
     (while (ulce-step cpu))))
 
-(defun ulce-load-program  (cpu prog &optional a b c)
-  "Load PROG vector into mem of CPU (defaults `ulce-cpu'), set A B C registers, adds stop code."
+(cl-defun ulce-load-program  (prog &key (cpu ulce-cpu) (a 0) (b 0) (c 0))
+  "Load PROG vector into mem of CPU (defaults `ulce-cpu'), set A B C registers, add stop code."
   (let ((cpu (or cpu ulce-cpu))
         (a (or a 0))
         (b (or b 0))
@@ -104,7 +104,7 @@
 (defun testit-AOC17 (&optional cpu)
   "Load and run a test program on CPU (default is the global `ulce-cpu')."
   (let ((cpu (or cpu ulce-cpu)))
-    (ulce-load-program cpu [2 4 1 3 7 5 4 1 1 3 0 3 5 5 3 0] 37283687 0 0)
+    (ulce-load-program [2 4 1 3 7 5 4 1 1 3 0 3 5 5 3 0] :cpu cpu :a 37283687 :b 0 :c 0)
     (ulce-run cpu 0)))
 
 ;; run test on the global default ulce-cpu
