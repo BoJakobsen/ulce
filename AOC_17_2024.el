@@ -10,8 +10,13 @@
 (require 'cl-lib)
 
 (defvar ulce-memsize 20
-  "Default memory size.")
+  "Memory size.")
 (setq ulce-memsize 20) ; set here for applying change on re-eval of buffer
+
+
+(defvar ulce-n-opcodes
+  "Number of op codes.")
+(setq ulce-n-opcodes 8) ; set here for applying change on re-eval of buffer
 
 (cl-defstruct ulce-registers
   "Register structure."
@@ -20,10 +25,44 @@
 
 (cl-defstruct ulce-machine
   "CPU structure, r: registers sub-structure, pc: program counter, mem: memory, stop-code."
-  (r-abc (make-ulce-registers)) (pc 0) (mem (make-vector ulce-memsize 0)) (stop-code 99) )
+  (r-abc (make-ulce-registers)) (pc 0) (mem (make-vector ulce-memsize 0)) (op (make-vector ulce-n-opcodes  nil)) (stop-code 99) )
+
+(defun ulce--define-op (cpu)
+  "Placeholder function (for later macro), primitively generate op code tabel in CPU."
+  (aset (ulce-machine-op cpu) 0
+        (lambda (cpu reg operand)
+          (setf (ulce-registers-a reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg))))))
+  (aset (ulce-machine-op cpu) 1
+        (lambda (cpu reg operand)
+          (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  operand))))
+  (aset (ulce-machine-op cpu) 2
+        (lambda (cpu reg operand)
+          (setf (ulce-registers-b reg)  (logand (ulce--decode-combo-operand operand reg) 7 ))))
+  (aset (ulce-machine-op cpu) 3
+        (lambda (cpu reg operand)
+          (if (not (zerop (ulce-registers-a reg)))  (setf (ulce-machine-pc cpu)  operand)
+            nil)))
+  (aset (ulce-machine-op cpu) 4
+        (lambda (cpu reg operand)
+          (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  (ulce-registers-c reg)))))
+  (aset (ulce-machine-op cpu) 5
+        (lambda (cpu reg operand)
+          (message "%d" (logand (ulce--decode-combo-operand operand reg) 7))))
+  (aset (ulce-machine-op cpu) 6 
+        (lambda (cpu reg operand)
+          (setf (ulce-registers-b reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg))))))
+  (aset (ulce-machine-op cpu) 7
+        (lambda (cpu reg operand)
+          (setf (ulce-registers-c reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))))
+
+(defun ulce-make-cpu ()
+  "Generate cpu."
+  (let ((cpu (make-ulce-machine)))
+    (ulce--define-op cpu)
+    cpu))
 
 (defvar ulce-cpu nil "Default global CPU structure.")
-(setq ulce-cpu (make-ulce-machine)); set here for applying change on re-eval of buffer
+(setq ulce-cpu (ulce-make-cpu)); 
 
 (defun ulce--mem-read (cpu addr)
   "Retuns contents of memory address ADDR from CPU."
@@ -49,31 +88,11 @@
     (operand ; operand 0 -- 3 are passed through
      operand)))
 
-;; Version using bit-vise operations, deduced from the original puzzle.
 (defun ulce--exec-op (cpu op operand)
   "Execute OP with OPERAND on CPU."
   (let ((reg (ulce-machine-r-abc cpu)))
-    (pcase op
-      (0
-       (setf (ulce-registers-a reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
-      (1
-       (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  operand)))
-      (2
-       (setf (ulce-registers-b reg)  (logand (ulce--decode-combo-operand operand reg) 7 )))
-      ((and 3 (guard (not (zerop (ulce-registers-a reg)))))
-       (setf (ulce-machine-pc cpu)  operand))
-      (3
-       nil) ; jnz not taken
-      (4
-       (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  (ulce-registers-c reg))))
-      (5
-       (message "%d" (logand (ulce--decode-combo-operand operand reg) 7)))
-      (6
-       (setf (ulce-registers-b reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
-      (7
-       (setf (ulce-registers-c reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg)))))
-      (op ; matches all and binds to op
-       (error "Bad opcode: %S" op)))))
+    (funcall (aref (ulce-machine-op cpu) op) cpu reg operand)))
+;; some check for bad op would be good
 
 (defun ulce-step (&optional cpu)
   "Step program on machine CPU. Return nil if program end reached."
@@ -91,7 +110,7 @@
     (while (ulce-step cpu))))
 
 (cl-defun ulce-load-program  (prog &key (cpu ulce-cpu) (a 0) (b 0) (c 0))
-  "Load PROG vector into mem of CPU (defaults `ulce-cpu'), set A B C registers, add stop code."
+  "Load PROG vector into mem of CPU, set A B C registers, add stop code."
   (let ((cpu (or cpu ulce-cpu))
         (a (or a 0))
         (b (or b 0))
