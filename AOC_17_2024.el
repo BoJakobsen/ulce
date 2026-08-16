@@ -23,33 +23,34 @@
   (r-abc (make-ulce-registers)) (pc 0) (mem (make-vector ulce-memsize 0)) (stop-code 99))
 
 (defun ulce--define-op (n)
-  "Primitively generate op code table (to be replaced with macros)."
+  "Primitively generate op code table of N entries (to be replaced with macros)."
   (let ((op (make-vector n nil)))
     (aset op 0
-          (lambda (cpu reg operand)
+          (lambda (_cpu reg operand)
             (setf (ulce-registers-a reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg))))))
     (aset op 1
-          (lambda (cpu reg operand)
+          (lambda (_cpu reg operand)
             (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  operand))))
     (aset op 2
-          (lambda (cpu reg operand)
+          (lambda (_cpu reg operand)
             (setf (ulce-registers-b reg)  (logand (ulce--decode-combo-operand operand reg) 7 ))))
     (aset op 3
           (lambda (cpu reg operand)
             (if (not (zerop (ulce-registers-a reg)))  (setf (ulce-machine-pc cpu)  operand)
               nil)))
     (aset op 4
-          (lambda (cpu reg operand)
+          (lambda (_cpu reg _operand)
             (setf (ulce-registers-b reg)  (logxor (ulce-registers-b reg)  (ulce-registers-c reg)))))
     (aset op 5
-          (lambda (cpu reg operand)
+          (lambda (_cpu reg operand)
             (message "%d" (logand (ulce--decode-combo-operand operand reg) 7))))
     (aset op 6
-          (lambda (cpu reg operand)
+          (lambda (_cpu reg operand)
             (setf (ulce-registers-b reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg))))))
     (aset op 7
-          (lambda (cpu reg operand)
-            (setf (ulce-registers-c reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg))))))))
+          (lambda (_cpu reg operand)
+            (setf (ulce-registers-c reg)  (ash (ulce-registers-a reg) (- (ulce--decode-combo-operand operand reg))))))
+    op))
 
 (defvar ulce-opcodes nil
   "Global opcode table.")
