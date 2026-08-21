@@ -63,35 +63,27 @@
   "Retuns contents of memory address ADDR from VM."
   (aref (ulce-machine-mem vm) addr))
 
-;; (defmacro ulce--set-op (op-vec op-code out opr1 opr2 expr)
-;;   "Define OP-CODE in vector OP-VEC."
-;;   `(aset ,op-vec ,op-code
-;;          (lambda (vm operand)
-;;            (let ((opr1 (ulce--decode vm ,opr1 operand))
-;;                  (opr2 ,opr2))
-;;              (setf ,out ,expr)))))
+(defmacro ulce--set-op (op-vec op-code out opr1 opr2 expr)
+  "Define OP-CODE in vector OP-VEC."
+  `(aset ,op-vec ,op-code
+         (lambda (vm operand)
+           (let ((opr1 (ulce--decode vm ,opr1 operand))
+                 (opr2 (ulce--decode vm ,opr2 operand)))
+             (setf ,out ,expr)))))
 
-;; (ulce--set-op op 0 (ulce--decode vm a)
-;;                    a (ulce--decode vm combo operand)
-;;                    (ash opr1 (- opr2)))
+
 ;; (ulce--define-op 8)
 ;;(ulce--decode ulce-vm oper 1)
 
 (defun ulce--define-op (n)
   "Primitively generate op code table of N entries (to be replaced with macros)."
   (let ((op (make-vector n nil)))
-    ;; (ulce--set-op op 0 (ulce--decode vm a)
-    ;;               a (ulce--decode vm combo operand)
-    ;;               (ash opr1 (- opr2)))
+    (ulce--set-op op 0 (ulce--decode vm a)
+                  a combo
+                  (ash opr1 (- opr2)))
     ;; (aset op 0
-    ;;   (lambda (vm operand)
-    ;;     (let
-    ;;         ((opr1 (ulce--decode vm a operand))
-    ;;          (opr2 (ulce--decode vm combo operand)))
-    ;;       (setf (ulce--decode vm a) (ash opr1 (- opr2))))))
-    (aset op 0
-          (lambda (vm operand)
-            (setf (ulce--decode vm a)  (ash (ulce--decode vm a) (- (ulce--decode vm oper operand))))))
+    ;;       (lambda (vm operand)
+    ;;         (setf (ulce--decode vm a)  (ash (ulce--decode vm a) (- (ulce--decode vm oper operand))))))
     (aset op 1
           (lambda (vm operand)
             (setf (ulce--decode vm b)  (logxor (ulce--decode vm b)  (ulce--decode vm oper operand)))))
@@ -117,7 +109,7 @@
     op))
 
 
-;; Define
+;; Define machine running functions
 
 (defun ulce--advance (vm)
   "Retuns contents from VM memory address pc, and advance pc to next byte."
@@ -125,10 +117,11 @@
   (ulce--mem-read vm (ulce-machine-pc vm))
   (cl-incf (ulce-machine-pc vm) 1)))
 
+;; some check for bad op would be good
 (defun ulce--exec-op (vm op operand opcodes)
   "Execute OP with OPERAND on VM."
     (funcall (aref opcodes op) vm operand))
-;; some check for bad op would be good
+
 
 (defun ulce-step (&optional vm)
   "Step program on machine VM. Return nil if program end reached."
@@ -151,13 +144,12 @@
   "Load PROGRAM into mem of VM, set A B C registers, add stop code."
   (if (> (+ 2 (length program)) ulce-memsize) ; space for stop code needed
       (error "Program is to long")
-    (setf (ulce-reg vm a) a)
-    (setf (ulce-reg vm b) b)
-    (setf (ulce-reg vm c) c)
+    (setf (ulce--decode vm a) a)
+    (setf (ulce--decode vm b) b)
+    (setf (ulce--decode vm c) c)
     (cl-replace (ulce-machine-mem vm) (vconcat program (list (ulce-machine-stop-code vm))))))
 
 ;; Define global VM and Op-code tabel
-
 (defvar ulce-memsize 20
   "Memory size.")
 (setq ulce-memsize 20) ; set here for applying change on re-eval of buffer
@@ -169,13 +161,14 @@
 (defvar ulce-vm nil "Default global default VM.")
 (setq ulce-vm (make-ulce-machine)); 
 
+;; Define AOC 17 2024 program, and tester function
 (defun testit-AOC17 (&optional vm)
   "Load and run a test program on VM (default is the global `ulce-vm')."
   (let ((vm (or vm ulce-vm)))
     (ulce-load-program [2 4 1 3 7 5 4 1 1 3 0 3 5 5 3 0] :vm vm :a 37283687 :b 0 :c 0)
     (ulce-run vm 0)))
 
-;; run test on the global default ulce-vm
+
 (testit-AOC17)
 ;(pp ulce-vm)
 
