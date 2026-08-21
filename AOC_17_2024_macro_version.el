@@ -63,14 +63,13 @@
   "Retuns contents of memory address ADDR from VM."
   (aref (ulce-machine-mem vm) addr))
 
-(defmacro ulce--set-op (op-vec op-code out opr1 opr2 expr)
-  "Define OP-CODE in vector OP-VEC."
+(cl-defmacro ulce--set-op (op-vec op-code &key out opr1 opr2 expr)
+  "Define OP-CODE in vector OP-VEC. EXPR is in terms of opr1 and opr2"
   `(aset ,op-vec ,op-code
          (lambda (vm operand)
            (let ((opr1 (ulce--decode vm ,opr1 operand))
                  (opr2 (ulce--decode vm ,opr2 operand)))
-             (setf ,out ,expr)))))
-
+             (setf (ulce--decode vm ,out) ,expr)))))
 
 ;; (ulce--define-op 8)
 ;;(ulce--decode ulce-vm oper 1)
@@ -78,12 +77,11 @@
 (defun ulce--define-op (n)
   "Primitively generate op code table of N entries (to be replaced with macros)."
   (let ((op (make-vector n nil)))
-    (ulce--set-op op 0 (ulce--decode vm a)
-                  a combo
-                  (ash opr1 (- opr2)))
-    ;; (aset op 0
-    ;;       (lambda (vm operand)
-    ;;         (setf (ulce--decode vm a)  (ash (ulce--decode vm a) (- (ulce--decode vm oper operand))))))
+    (ulce--set-op op 0
+                  :out a
+                  :opr1 a
+                  :opr2 combo
+                  :expr (ash opr1 (- opr2)))
     (aset op 1
           (lambda (vm operand)
             (setf (ulce--decode vm b)  (logxor (ulce--decode vm b)  (ulce--decode vm oper operand)))))
