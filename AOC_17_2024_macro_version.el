@@ -63,30 +63,35 @@
   "Retuns contents of memory address ADDR from VM."
   (aref (ulce-machine-mem vm) addr))
 
-(defmacro ulce--set-op (op-vec op-code out opr1 opr2 expr)
-  "Define OP-CODE in vector OP-VEC."
-  `(aset ,op-vec ,op-code
-         (lambda (vm operand)
-           (let ((out ,out)
-                 (opr1 (ulce--decode vm ,opr1 operand))
-                 (opr2 ,opr2))
-             (setf out ,expr)))))
+;; (defmacro ulce--set-op (op-vec op-code out opr1 opr2 expr)
+;;   "Define OP-CODE in vector OP-VEC."
+;;   `(aset ,op-vec ,op-code
+;;          (lambda (vm operand)
+;;            (let ((opr1 (ulce--decode vm ,opr1 operand))
+;;                  (opr2 ,opr2))
+;;              (setf ,out ,expr)))))
 
 ;; (ulce--set-op op 0 (ulce--decode vm a)
-;;                   a (ulce--decode vm combo operand)
-;;                   (ash opr1 (- opr2)))
+;;                    a (ulce--decode vm combo operand)
+;;                    (ash opr1 (- opr2)))
 ;; (ulce--define-op 8)
 ;;(ulce--decode ulce-vm oper 1)
 
 (defun ulce--define-op (n)
   "Primitively generate op code table of N entries (to be replaced with macros)."
   (let ((op (make-vector n nil)))
-    (ulce--set-op op 0 (ulce--decode vm a)
-                  a (ulce--decode vm combo operand)
-                  (ash opr1 (- opr2)))
+    ;; (ulce--set-op op 0 (ulce--decode vm a)
+    ;;               a (ulce--decode vm combo operand)
+    ;;               (ash opr1 (- opr2)))
     ;; (aset op 0
-    ;;       (lambda (vm operand)
-    ;;         (setf (ulce-reg vm a)  (ash (ulce-reg vm a) (- (ulce--decode-combo-operand vm operand))))))
+    ;;   (lambda (vm operand)
+    ;;     (let
+    ;;         ((opr1 (ulce--decode vm a operand))
+    ;;          (opr2 (ulce--decode vm combo operand)))
+    ;;       (setf (ulce--decode vm a) (ash opr1 (- opr2))))))
+    (aset op 0
+          (lambda (vm operand)
+            (setf (ulce--decode vm a)  (ash (ulce--decode vm a) (- (ulce--decode vm oper operand))))))
     (aset op 1
           (lambda (vm operand)
             (setf (ulce--decode vm b)  (logxor (ulce--decode vm b)  (ulce--decode vm oper operand)))))
