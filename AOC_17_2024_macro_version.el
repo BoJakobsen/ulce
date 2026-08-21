@@ -2,12 +2,12 @@
 
 ;;; Commentary:
 ;; ULCE (Useless Lisp CPU Emulator)
-;; Lisp version of day 17 from 2024.
+;; Lisp version of AOC day 17 from 2024.
 ;; Another take on solving this problem, goal is to sketch a more extendable VM structure.
 
 ;; Very simple (and generally useless) VM from AOC 17 2024.
-;; Memory layout for this VM is integer representation with each block being {op, operand} 
-;; Registers are a,b,c general purpose 
+;; Memory layout for this VM is integer representation with each block being {op, operand}
+;; Registers are a,b,c general purpose
 ;; 8 opcodes (0 -> 7) inc jnz (op #3) and print (op #5)
 ;; op #99 added to this VM for halt
 
@@ -29,7 +29,7 @@
   )
 
 (defmacro ulce--decode (vm acc &optional operand)
-  "Register access, return contents of REG (a,b,c) from VM."
+  "Decode mem and register access for VM."
   (pcase acc
     ('a
      `(ulce-registers-a (ulce-machine-r-abc ,vm)))
@@ -39,11 +39,13 @@
      `(ulce-registers-c (ulce-machine-r-abc ,vm)))
     ('combo
      `(ulce--decode-combo-operand ,vm ,operand))
-    ('oper
-     `,operand)))
-
-;; for debug
-;(macroexpand-1 '(ulce--decode vm combo a))
+    ('operand
+     `,operand)
+    ('pc
+     `(ulce-machine-pc ,vm))
+    ('mem
+     `(aref (ulce-machine-mem ,vm) ,operand))
+    ))
 
 (defun ulce--decode-combo-operand (vm operand)
   "Return current combo-operand for OPERAND using VM."
@@ -59,51 +61,61 @@
     (operand ; operand 0 -- 3 are passed through
      operand)))
 
-(defun ulce--mem-read (vm addr)
-  "Retuns contents of memory address ADDR from VM."
-  (aref (ulce-machine-mem vm) addr))
-
 (cl-defmacro ulce--set-op (op-vec op-code &key out opr1 opr2 expr)
-  "Define OP-CODE in vector OP-VEC. EXPR is in terms of opr1 and opr2"
+  "Define OP-CODE in vector OP-VEC. EXPR is in terms of opr1 and opr2."
   `(aset ,op-vec ,op-code
          (lambda (vm operand)
            (let ((opr1 (ulce--decode vm ,opr1 operand))
                  (opr2 (ulce--decode vm ,opr2 operand)))
-             (setf (ulce--decode vm ,out) ,expr)))))
-
-;; (ulce--define-op 8)
-;;(ulce--decode ulce-vm oper 1)
+                                        ; Except 'out all writes are handled the same 
+             ,(if (eq out 'out)
+                  `(message "%d" ,expr)
+                `(setf (ulce--decode vm ,out) ,expr)
+                )))))
 
 (defun ulce--define-op (n)
-  "Primitively generate op code table of N entries (to be replaced with macros)."
+  "Generate op code table of N entries."
   (let ((op (make-vector n nil)))
     (ulce--set-op op 0
                   :out a
                   :opr1 a
                   :opr2 combo
                   :expr (ash opr1 (- opr2)))
-    (aset op 1
-          (lambda (vm operand)
-            (setf (ulce--decode vm b)  (logxor (ulce--decode vm b)  (ulce--decode vm oper operand)))))
-    (aset op 2
-          (lambda (vm operand)
-            (setf (ulce--decode vm b)  (logand (ulce--decode vm combo operand) 7 ))))
-    (aset op 3
-          (lambda (vm operand)
-            (if (not (zerop (ulce--decode vm a)))  (setf (ulce-machine-pc vm)  operand)
-              nil)))
-    (aset op 4
-          (lambda (vm _operand)
-            (setf (ulce--decode vm b)  (logxor (ulce--decode vm b)  (ulce--decode vm c)))))
-    (aset op 5
-          (lambda (vm operand)
-            (message "%d" (logand (ulce--decode vm combo operand) 7))))
-    (aset op 6
-          (lambda (vm operand)
-            (setf (ulce--decode vm b)  (ash (ulce--decode vm a) (- (ulce--decode vm combo operand))))))
-    (aset op 7
-          (lambda (vm operand)
-            (setf (ulce--decode vm c)  (ash (ulce--decode vm a) (- (ulce--decode vm combo operand))))))
+    (ulce--set-op op 1
+                  :out b
+                  :opr1 b
+                  :opr2 operand
+                  :expr (logxor opr1 opr2))
+    (ulce--set-op op 2
+                  :out b
+                  :opr1 combo
+                  :opr2 nil
+                  :expr (logand opr1 7))
+    (ulce--set-op op 3
+                  :out pc
+                  :opr1 a
+                  :opr2 pc
+                  :expr (if (not (zerop opr1)) operand opr2))
+    (ulce--set-op op 4
+                  :out b
+                  :opr1 b
+                  :opr2 c
+                  :expr (logxor opr1 opr2))
+    (ulce--set-op op 5
+                  :out out
+                  :opr1 combo
+                  :opr2 nil
+                  :expr (logand opr1 7))
+    (ulce--set-op op 6
+                  :out b
+                  :opr1 b
+                  :opr2 combo
+                  :expr (ash opr1 (- opr2)))
+    (ulce--set-op op 7
+                  :out c
+                  :opr1 a
+                  :opr2 combo
+                  :expr (ash opr1 (- opr2)))
     op))
 
 
@@ -112,14 +124,13 @@
 (defun ulce--advance (vm)
   "Retuns contents from VM memory address pc, and advance pc to next byte."
  (prog1
-  (ulce--mem-read vm (ulce-machine-pc vm))
-  (cl-incf (ulce-machine-pc vm) 1)))
+     (ulce--decode vm mem (ulce--decode vm pc))
+  (cl-incf (ulce--decode vm pc) 1)))
 
 ;; some check for bad op would be good
 (defun ulce--exec-op (vm op operand opcodes)
   "Execute OP with OPERAND on VM."
     (funcall (aref opcodes op) vm operand))
-
 
 (defun ulce-step (&optional vm)
   "Step program on machine VM. Return nil if program end reached."
@@ -166,8 +177,6 @@
     (ulce-load-program [2 4 1 3 7 5 4 1 1 3 0 3 5 5 3 0] :vm vm :a 37283687 :b 0 :c 0)
     (ulce-run vm 0)))
 
-
 (testit-AOC17)
-;(pp ulce-vm)
 
-;;; AOC_17_2024.el ends here
+;;; AOC_17_2024_macro_version.el ends here
