@@ -84,7 +84,7 @@ OPR1 and OPR2 are ACC symbols (see `ulce--decode') decoded once per call
 and bound to `opr1'/`opr2' for use inside EXPR.
 
 OUT also an ACC symbol: EXPR's value is written there via
-setf is OUT is not nil.
+setf if OUT is not nil.
 
 PRINT if set, triggers print out of EXPR through the VM's print facility.
 
@@ -140,7 +140,7 @@ SIDE-EFFECT can be any form using `opr1'/`opr2'/`expr'/`out'."
                   :print t)
     (ulce--set-op op 6
                   :out b
-                  :opr1 b
+                  :opr1 a
                   :opr2 combo
                   :expr (ash opr1 (- opr2)))
     (ulce--set-op op 7
@@ -191,11 +191,11 @@ SIDE-EFFECT can be any form using `opr1'/`opr2'/`expr'/`out'."
     (setf (ulce--decode vm c) c)
     (cl-replace (ulce-machine-mem vm) (vconcat program (list (ulce-machine-stop-code vm))))))
 
-(defun ulce-console-print (var)
+(defun ulce-console-print (val)
   "Print VAL to \"ulce/console\" buffer"
   (with-current-buffer (get-buffer-create "ulce/console")
     (goto-char (point-max))
-      (insert (format "%s" var))))
+      (insert (format "%s" val))))
 
 ;; Define global VM and Op-code tabel
 (defvar ulce-memsize 20
