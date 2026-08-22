@@ -29,7 +29,17 @@
   )
 
 (defmacro ulce--decode (vm acc &optional operand)
-  "Decode mem and register access for VM."
+    "Expand to a place or value form for part of VM, selected by ACC.
+
+ACC chooses what is decoded:
+  a / b / c -- the corresponding register (setf-able place)
+  pc        -- the program counter (setf-able place)
+  mem       -- OPERAND used as an address into VM's memory (setf-able place)
+  combo     -- the AOC \"combo operand\" value of OPERAND (read-only)
+  operand   -- OPERAND itself, unchanged (read-only)
+  nil       -- explicit no-op, expands to nil
+
+Any other ACC signals an error at expansion time."
   (pcase acc
     ('a
      `(ulce-registers-a (ulce-machine-r-abc ,vm)))
@@ -61,13 +71,29 @@
     (operand ; operand 0 -- 3 are passed through
      operand)))
 
-(cl-defmacro ulce--set-op (op-vec op-code &key out opr1 opr2 expr side-effect)
-  "Define OP-CODE in vector OP-VEC. EXPR is in terms of opr1 and opr2."
+(cl-defmacro ulce--set-op (op-vec op-code &key out opr1 opr2 expr print side-effect)
+  "Install an opcode handler for OP-CODE into vector OP-VEC.
+
+OPR1 and OPR2 are ACC symbols (see `ulce--decode') decoded once per call
+and bound to `opr1'/`opr2' for use inside EXPR.
+
+OUT also an ACC symbol: EXPR's value is written there via
+setf is OUT is not nil.
+
+PRINT if set, triggers print out of EXPR through the VM's print facility.
+
+SIDE-EFFECT can be any form using `opr1'/`opr2'/`expr'."
   `(aset ,op-vec ,op-code
          (lambda (vm operand)
            (let ((opr1 (ulce--decode vm ,opr1 operand))
                  (opr2 (ulce--decode vm ,opr2 operand)))
-                ,side-effect ; nil (no-op) if not set
+             ,(when side-effect
+                `(let ((expr ,expr)
+                       (out ,out))
+                   ,side-effect))
+             ,(when print
+                `(let ((expr ,expr))
+                   (message "%s" expr)))
              ,(when out
                 `(setf (ulce--decode vm ,out) ,expr))))))
 
@@ -106,7 +132,7 @@
                   :opr1 combo
                   :opr2 nil
                   :expr (logand opr1 7)
-                  :side-effect (message "%d" (logand opr1 7)))
+                  :print t)
     (ulce--set-op op 6
                   :out b
                   :opr1 b
