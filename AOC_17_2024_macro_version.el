@@ -21,12 +21,17 @@
 ;; VM setup
 (cl-defstruct ulce-machine
   "VM structure, r: registers sub-structure, pc: program counter, mem: memory, stop-code."
-  (r-abc (make-ulce-registers)) (pc 0) (mem (make-vector ulce-memsize 0)) (stop-code 99))
+  (r-abc (make-ulce-registers)) (pc 0) (mem (make-vector ulce-memsize 0)) (stop-code 99)
+  (print (lambda (val) (message "%s" val))))
 
 (cl-defstruct ulce-registers
   "Register structure."
   (a 0) (b 0) (c 0)
   )
+
+(defun ulce-print (vm val)
+  "Print VAL using the print method of VM."
+  (funcall (ulce-machine-print vm) val))
 
 (defmacro ulce--decode (vm acc &optional operand)
     "Expand to a place or value form for part of VM, selected by ACC.
@@ -55,7 +60,8 @@ Any other ACC signals an error at expansion time."
      `(ulce-machine-pc ,vm))
     ('mem
      `(aref (ulce-machine-mem ,vm) ,operand))
-    ))
+    ('nil nil)
+    (_ (error "ulce--decode: Unknown accessor %S" acc))))
 
 (defun ulce--decode-combo-operand (vm operand)
   "Return current combo-operand for OPERAND using VM."
@@ -82,18 +88,17 @@ setf is OUT is not nil.
 
 PRINT if set, triggers print out of EXPR through the VM's print facility.
 
-SIDE-EFFECT can be any form using `opr1'/`opr2'/`expr'."
+SIDE-EFFECT can be any form using `opr1'/`opr2'/`expr'/`out'."
   `(aset ,op-vec ,op-code
          (lambda (vm operand)
-           (let ((opr1 (ulce--decode vm ,opr1 operand))
-                 (opr2 (ulce--decode vm ,opr2 operand)))
+           (let* ((opr1 (ulce--decode vm ,opr1 operand))
+                  (opr2 (ulce--decode vm ,opr2 operand))
+                  (expr ,expr))
              ,(when side-effect
-                `(let ((expr ,expr)
-                       (out ,out))
+                `(let ((out ',out))
                    ,side-effect))
              ,(when print
-                `(let ((expr ,expr))
-                   (message "%s" expr)))
+                `(ulce-print vm expr))
              ,(when out
                 `(setf (ulce--decode vm ,out) ,expr))))))
 
@@ -105,7 +110,7 @@ SIDE-EFFECT can be any form using `opr1'/`opr2'/`expr'."
                   :opr1 a
                   :opr2 combo
                   :expr (ash opr1 (- opr2))
-                  ;:side-effect (1)
+                  :side-effect nil
                   )
     (ulce--set-op op 1
                   :out b
