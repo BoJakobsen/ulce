@@ -191,11 +191,25 @@ SIDE-EFFECT can be any form using `opr1'/`opr2'/`expr'/`out'."
     (setf (ulce--decode vm c) c)
     (cl-replace (ulce-machine-mem vm) (vconcat program (list (ulce-machine-stop-code vm))))))
 
+(define-derived-mode ulce-console-mode fundamental-mode "ULCE-Console"
+  "Major mode for the ULCE Wozmon-style console.")
+
 (defun ulce-console-print (val)
   "Print VAL to \"ulce/console\" buffer"
   (with-current-buffer (get-buffer-create "ulce/console")
+    (unless (derived-mode-p 'ulce-console-mode)
+      (ulce-console-mode))
     (goto-char (point-max))
       (insert (format "%s" val))))
+
+(defun ulce-console-execute-line ()
+  "Read and execute last line on monitor buffer."
+  (interactive)
+  (let ((cmd (buffer-substring-no-properties (pos-bol) (pos-eol))))
+    (message "%s" cmd)
+    (insert "\n\\")))
+
+(keymap-set ulce-console-mode-map "RET" #'ulce-console-execute-line)
 
 ;; Define global VM and Op-code tabel
 (defvar ulce-memsize 20
