@@ -61,17 +61,15 @@
     (operand ; operand 0 -- 3 are passed through
      operand)))
 
-(cl-defmacro ulce--set-op (op-vec op-code &key out opr1 opr2 expr)
+(cl-defmacro ulce--set-op (op-vec op-code &key out opr1 opr2 expr side-effect)
   "Define OP-CODE in vector OP-VEC. EXPR is in terms of opr1 and opr2."
   `(aset ,op-vec ,op-code
          (lambda (vm operand)
            (let ((opr1 (ulce--decode vm ,opr1 operand))
                  (opr2 (ulce--decode vm ,opr2 operand)))
-                                        ; Except 'out all writes are handled the same 
-             ,(if (eq out 'out)
-                  `(message "%d" ,expr)
-                `(setf (ulce--decode vm ,out) ,expr)
-                )))))
+                ,side-effect ; nil (no-op) if not set
+             ,(when out
+                `(setf (ulce--decode vm ,out) ,expr))))))
 
 (defun ulce--define-op (n)
   "Generate op code table of N entries."
@@ -80,7 +78,9 @@
                   :out a
                   :opr1 a
                   :opr2 combo
-                  :expr (ash opr1 (- opr2)))
+                  :expr (ash opr1 (- opr2))
+                  ;:side-effect (1)
+                  )
     (ulce--set-op op 1
                   :out b
                   :opr1 b
@@ -102,10 +102,11 @@
                   :opr2 c
                   :expr (logxor opr1 opr2))
     (ulce--set-op op 5
-                  :out out
+                  :out nil
                   :opr1 combo
                   :opr2 nil
-                  :expr (logand opr1 7))
+                  :expr (logand opr1 7)
+                  :side-effect (message "%d" (logand opr1 7)))
     (ulce--set-op op 6
                   :out b
                   :opr1 b
