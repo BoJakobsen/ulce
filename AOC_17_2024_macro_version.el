@@ -181,6 +181,7 @@ SIDE-EFFECT can be any form using `opr1'/`opr2'/`expr'/`out'."
     (while (ulce-step vm))))
 
 ;; IO and loader functions
+
 (cl-defun ulce-load-program  (program &key (vm ulce-vm) (a 0) (b 0) (c 0))
   "Load PROGRAM into mem of VM, set A B C registers, add stop code."
   (if (> (+ 2 (length program)) ulce-memsize) ; space for stop code needed
@@ -189,6 +190,12 @@ SIDE-EFFECT can be any form using `opr1'/`opr2'/`expr'/`out'."
     (setf (ulce--decode vm b) b)
     (setf (ulce--decode vm c) c)
     (cl-replace (ulce-machine-mem vm) (vconcat program (list (ulce-machine-stop-code vm))))))
+
+(defun ulce-console-print (var)
+  "Print VAL to \"ulce/console\" buffer"
+  (with-current-buffer (get-buffer-create "ulce/console")
+    (goto-char (point-max))
+      (insert (format "%s" var))))
 
 ;; Define global VM and Op-code tabel
 (defvar ulce-memsize 20
@@ -200,14 +207,16 @@ SIDE-EFFECT can be any form using `opr1'/`opr2'/`expr'/`out'."
 (setq ulce-opcodes (ulce--define-op 8))
 
 (defvar ulce-vm nil "Default global default VM.")
-(setq ulce-vm (make-ulce-machine)); 
+(setq ulce-vm (make-ulce-machine :print (lambda (val) (ulce-console-print val)))); global vm using colsole
 
 ;; Define AOC 17 2024 program, and tester function
 (defun testit-AOC17 (&optional vm)
   "Load and run a test program on VM (default is the global `ulce-vm')."
   (let ((vm (or vm ulce-vm)))
+    (ulce-print vm "\ntestit-AOC17: \n" )
     (ulce-load-program [2 4 1 3 7 5 4 1 1 3 0 3 5 5 3 0] :vm vm :a 37283687 :b 0 :c 0)
-    (ulce-run vm 0)))
+    (ulce-run vm 0)
+    (ulce-print vm "\n")))
 
 (testit-AOC17)
 
